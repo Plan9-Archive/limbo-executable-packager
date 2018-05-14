@@ -17,8 +17,8 @@ def within_dir(obj, root):
     else:
         return obj
 
-def limbo(name):
-    if os.system("limbo " + name) != 0:
+def limbo(name, obj):
+    if os.system("limbo -o " + obj + " " + name) != 0:
         error("Failed to compile limbo file: %s\n" % name)
 
 def mkdir(path):
@@ -98,27 +98,19 @@ if __name__ == "__main__":
         for dep in p.stdout.readlines():
             deps.add(dep.strip())
     
-    # The boot file will replace the emuinit.dis file.
-    limbo("boot.b")
-    move("boot.dis", os.path.join(tempdir, "boot.dis"))
-    
-    # Enter the Inferno source directory.
-    os.chdir(emu_src_dir)
-    
     # Create a new configuration file.
-    copy("emu", "standalone")
+    copy(os.path.join(emu_src_dir, "emu"),
+         os.path.join(emu_src_dir, "standalone"))
     
     # Add the Dis files to the configuration file.
-    cfg = open("standalone", "a")
+    cfg = open(os.path.join(emu_src_dir, "standalone"), "a")
     cfg.seek(0, 2)
-    
-    # The boot.dis file will be renamed to emuinit.dis when packaged. It needs
-    # to get a string from the /tmp/appname file which we will include with it.
-    cfg.write('\t/dis/emuinit.dis\t/tmp/standalone/boot.dis\n')
     
     # All the Dis files supplied on the command line are included in the root
     # filing system manifest.
     appname = None
+    uses_wm = False
+    paths = []
     
     for dis_name, dis_file in dis_names:
     
@@ -126,25 +118,53 @@ if __name__ == "__main__":
         
         if dis_within != dis_file:
             path = dis_within
-            cfg.write('\t%s\n' % dis_within)
+            paths.append((dis_within, dis_within))
         else:
             path = "/dis/standalone/" + dis_name
-            cfg.write('\t/dis/standalone/%(name)s\t/tmp/standalone/%(name)s\n' % {"name": dis_name})
+            paths.append((path, "/tmp/standalone/" + dis_name))
         
         if not appname:
             appname = path
-    
-    # The first Dis file is used as the entry point into the application.
-    open(os.path.join(tempdir, "appname"), "w").write(appname)
-    cfg.write('\t/dis/standalone/appname\t/tmp/standalone/appname\n' % {"name": dis_name})
+        
+        if '/dis/wm' in path:
+            uses_wm = True
     
     # Add the dependencies to the manifest.
-    for dep in deps:
-        cfg.write('\t%s\n' % dep)
+    for path in deps:
+    
+        cfg.write('\t%s\n' % path)
+        if '/dis/wm' in path:
+            uses_wm = True
+    
+    if uses_wm:
+        # The boot.dis file will be renamed to emuinit.dis when packaged.
+        # It needs to get a string from the /tmp/appname file which we will
+        # include with it.
+        paths.append(("/dis/emuinit.dis", "/tmp/standalone/boot.dis"))
+        
+        # The Dis file in the appname file is used as the entry point into the
+        # application.
+        open(os.path.join(tempdir, "appname"), "w").write(appname)
+        paths.append(("/dis/standalone/appname", "/tmp/standalone/appname"))
+        
+        # The boot file will replace the emuinit.dis file.
+        limbo("boot.b", "boot.dis")
+        move("boot.dis", os.path.join(tempdir, "boot.dis"))
+    else:
+        # The first Dis file is used as the entry point into the application.
+        paths[0] = ("/dis/emuinit.dis", paths[0][1])
+    
+    for dest, src in paths:
+        if src == dest:
+            cfg.write('\t%s\n' % dest)
+        else:
+            cfg.write('\t%s\t%s\n' % (dest, src))
     
     cfg.close()
     
-    # Build the executable.
+    # Enter the Inferno source directory and build the executable.
+    os.chdir(emu_src_dir)
+    
     if os.system("mk CONF=standalone") != 0:
         error("Failed to build an executable for %s. Exiting...\n" % exec_file)
     
