@@ -9,6 +9,24 @@ def error(message):
     os.chdir(this_dir)
     sys.exit(1)
 
+def find_dependencies(dis_file):
+
+    p = subprocess.Popen(["emu", "/dis/disdep", dis_file],
+                         stdout=subprocess.PIPE)
+    if p.wait() != 0:
+        error("Failed to get dependencies for %s. Exiting...\n" % dis_file)
+    
+    deps = set()
+    for dep in p.stdout.readlines():
+    
+        if dep.startswith("disdep:"):
+            # The disdep tool failed, so indicate this to the caller.
+            return None
+        
+        deps.add(dep.strip())
+    
+    return deps
+
 def within_dir(obj, root):
 
     root = root.rstrip(os.sep)
@@ -76,9 +94,12 @@ if __name__ == "__main__":
     tempdir = os.path.join(INFERNO_ROOT, "tmp", "standalone")
     mkdir(tempdir)
     
-    # Copy each Dis file into the temporary directory and find its dependencies.
+    # Copy each Dis file into the temporary directory, if necessary, and find
+    # its dependencies.
     deps = set()
-    dis_names = []
+    appname = None
+    uses_wm = False
+    paths = []
     
     for dis_file in dis_files:
     
@@ -86,57 +107,51 @@ if __name__ == "__main__":
         if os.path.splitext(dis_name)[1] != ".dis":
             error("File specified was not a Dis file: %s\n" % dis_file)
         
-        dis_names.append((dis_name, dis_file))
-        
-        copy(dis_file, os.path.join(tempdir, dis_name))
-        
-        p = subprocess.Popen(["emu", "/dis/disdep", "/tmp/standalone/" + dis_name],
-                             stdout=subprocess.PIPE)
-        if p.wait() != 0:
-            error("Failed to get dependencies for %s. Exiting...\n" % dis_name)
-        
-        for dep in p.stdout.readlines():
-            deps.add(dep.strip())
-    
-    # Create a new configuration file.
-    copy(os.path.join(emu_src_dir, "emu"),
-         os.path.join(emu_src_dir, "standalone"))
-    
-    # Add the Dis files to the configuration file.
-    cfg = open(os.path.join(emu_src_dir, "standalone"), "a")
-    cfg.seek(0, 2)
-    
-    # All the Dis files supplied on the command line are included in the root
-    # filing system manifest.
-    appname = None
-    uses_wm = False
-    paths = []
-    
-    for dis_name, dis_file in dis_names:
-    
         dis_within = within_dir(dis_file, INFERNO_ROOT)
         
         if dis_within != dis_file:
-            path = dis_within
-            paths.append((dis_within, dis_within))
+            # The file is already in the Inferno source directory.
+            src_path = dest_path = dis_within
         else:
-            path = "/dis/standalone/" + dis_name
-            paths.append((path, "/tmp/standalone/" + dis_name))
+            # Copy the file into the temporary directory.
+            copy(dis_file, os.path.join(tempdir, dis_name))
+            
+            src_path = "/tmp/standalone/" + dis_name
+            dest_path = "/dis/standalone/" + dis_name
         
-        if not appname:
-            appname = path
+        new_deps = find_dependencies(src_path)
         
-        if '/dis/wm' in path:
-            uses_wm = True
+        if new_deps != None:
+        
+            # Only include the file if its dependencies could be found.
+            paths.append((dest_path, src_path))
+            deps.update(new_deps)
+            
+            if not appname:
+                appname = dest_path
+            
+            if '/dis/wm' in dest_path:
+                uses_wm = True
     
     # Add the dependencies to the manifest.
     for path in deps:
     
-        cfg.write('\t%s\n' % path)
+        paths.append((path, path))
         if '/dis/wm' in path:
             uses_wm = True
     
     if uses_wm:
+    
+        # If the application relies on the window manager and it is not
+        # included then include the executable and its dependencies.
+        wm_dis = "/dis/wm/wm.dis"
+        
+        if wm_dis not in deps:
+            paths.append((wm_dis, wm_dis))
+            for path in find_dependencies(wm_dis):
+                if path not in deps:
+                    paths.append((path, path))
+        
         # The boot.dis file will be renamed to emuinit.dis when packaged.
         # It needs to get a string from the /tmp/appname file which we will
         # include with it.
@@ -154,6 +169,16 @@ if __name__ == "__main__":
         # The first Dis file is used as the entry point into the application.
         paths[0] = ("/dis/emuinit.dis", paths[0][1])
     
+    
+    # Create a new configuration file.
+    copy(os.path.join(emu_src_dir, "emu"),
+         os.path.join(emu_src_dir, "standalone"))
+    
+    # Add the Dis files to the configuration file.
+    cfg = open(os.path.join(emu_src_dir, "standalone"), "a")
+    cfg.seek(0, 2)
+    
+    # Add the paths to the manifest.
     for dest, src in paths:
         if src == dest:
             cfg.write('\t%s\n' % dest)
