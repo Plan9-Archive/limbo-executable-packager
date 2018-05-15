@@ -45,8 +45,12 @@ init(ctxt: ref Context, argv: list of string)
         return;
     }
 
-    program: string = "wm/wm " + appname;
+    # We could either bind all the things we need into a new directory and
+    # bind / to that directory, hiding the non-bound files and directories,
+    # or just unmount / to leave the root directory.
+    sys->unmount(nil, "/");
 
+    program: string = "wm/wm " + appname;
     args: list of string = "sh"::"-c"::program::nil;
 
     # We do not need to span a new process here.
