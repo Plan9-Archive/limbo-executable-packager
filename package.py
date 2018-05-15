@@ -130,14 +130,14 @@ if __name__ == "__main__":
             if not appname:
                 appname = dest_path
             
-            if '/dis/wm' in dest_path:
+            if '/dis/lib/wm' in dest_path:
                 uses_wm = True
     
     # Add the dependencies to the manifest.
     for path in deps:
     
         paths.append((path, path))
-        if '/dis/wm' in path:
+        if '/dis/lib/wm' in path:
             uses_wm = True
     
     if uses_wm:
