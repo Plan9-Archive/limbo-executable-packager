@@ -3,6 +3,7 @@
 import os, shutil, subprocess, sys
 
 this_dir = os.path.abspath(os.curdir)
+script_dir = os.path.split(os.path.abspath(__file__))[0]
     
 def error(message):
     sys.stderr.write(message)
@@ -140,6 +141,7 @@ if __name__ == "__main__":
             if '/dis/lib/wm' in dest_path:
                 uses_wm = True
     
+    
     # Add the dependencies to the manifest.
     for path in deps:
     
@@ -170,8 +172,18 @@ if __name__ == "__main__":
         paths.append(("/dis/standalone/appname", "/tmp/standalone/appname"))
         
         # The boot file will replace the emuinit.dis file.
-        limbo("boot.b", "boot.dis")
+        limbo(os.path.join(script_dir, "boot.b"), "boot.dis")
         move("boot.dis", os.path.join(tempdir, "boot.dis"))
+        
+        # Add the resources required by the window manager.
+        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "icons", "tk")):
+            path = "/icons/tk/" + file_name
+            paths.append((path, path))
+        
+        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "fonts", "pelm")):
+            path = "/fonts/pelm/" + file_name
+            paths.append((path, path))
+    
     else:
         # The first Dis file is used as the entry point into the application.
         paths[0] = ("/dis/emuinit.dis", paths[0][1])
