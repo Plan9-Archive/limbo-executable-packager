@@ -100,6 +100,7 @@ if __name__ == "__main__":
     appname = None
     uses_wm = False
     paths = []
+    dest_paths = set()
     
     for dis_file in dis_files:
     
@@ -113,19 +114,25 @@ if __name__ == "__main__":
             # The file is already in the Inferno source directory.
             src_path = dest_path = dis_within
         else:
-            # Copy the file into the temporary directory.
-            copy(dis_file, os.path.join(tempdir, dis_name))
-            
             src_path = "/tmp/standalone/" + dis_name
             dest_path = "/dis/standalone/" + dis_name
         
+        # Don't include duplicate files.
+        if dest_path in dest_paths:
+            continue
+        
+        # Copy the file into the temporary directory if it originates elsewhere.
+        if src_path != dest_path:
+            copy(dis_file, os.path.join(tempdir, dis_name))
+        
         new_deps = find_dependencies(src_path)
         
+        # Only include the file if its dependencies could be found.
         if new_deps != None:
         
-            # Only include the file if its dependencies could be found.
             paths.append((dest_path, src_path))
             deps.update(new_deps)
+            dest_paths.add(dest_path)
             
             if not appname:
                 appname = dest_path
@@ -146,7 +153,7 @@ if __name__ == "__main__":
         # included then include the executable and its dependencies.
         wm_dis = "/dis/wm/wm.dis"
         
-        if wm_dis not in deps:
+        if wm_dis not in dest_paths and wm_dis not in deps:
             paths.append((wm_dis, wm_dis))
             for path in find_dependencies(wm_dis):
                 if path not in deps:
