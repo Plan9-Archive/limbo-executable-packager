@@ -51,7 +51,7 @@ init(ctxt: ref Context, argv: list of string)
     sys->unmount(nil, "/");
 
     program: string = "wm/wm " + appname;
-    args: list of string = "sh"::"-c"::program::nil;
+    args := list of {"sh", "-c", program};
 
     # We do not need to span a new process here.
     sh->init(ctxt, args);
