@@ -183,14 +183,18 @@ if __name__ == "__main__":
         for file_name in os.listdir(os.path.join(INFERNO_ROOT, "fonts", "pelm")):
             path = "/fonts/pelm/" + file_name
             paths.append((path, path))
+        
+        # Use the regular configuration file as the basis for the manifest.
+        conf_file = "emu"
     
     else:
         # The first Dis file is used as the entry point into the application.
         paths[0] = ("/dis/emuinit.dis", paths[0][1])
+        conf_file = "emu-g"
     
     
     # Create a new configuration file.
-    copy(os.path.join(emu_src_dir, "emu"),
+    copy(os.path.join(emu_src_dir, conf_file),
          os.path.join(emu_src_dir, "standalone"))
     
     # Add the Dis files to the configuration file.
