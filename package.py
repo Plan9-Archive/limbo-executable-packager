@@ -10,6 +10,9 @@ def error(message):
     os.chdir(this_dir)
     sys.exit(1)
 
+def is_dis(path):
+    return path.endswith(".dis")
+
 def find_dependencies(dis_file):
 
     p = subprocess.Popen(["emu", "/dis/disdep", dis_file],
@@ -37,6 +40,7 @@ def within_dir(obj, root):
         return obj
 
 def limbo(name, obj):
+    print "Compiling", name, "to", obj
     if os.system("limbo -o " + obj + " " + name) != 0:
         error("Failed to compile limbo file: %s\n" % name)
 
@@ -62,7 +66,7 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 4:
         sys.stderr.write(
-            "Usage: %s <Inferno source directory> <Dis file>... <executable>\n\n"
+            "Usage: %s <Inferno source directory> <Limbo or Dis file>... <executable>\n\n"
             "Creates a standalone executable containing the emulator from the specified\n"
             "Inferno source directory, the Dis files for the application and their\n"
             "dependencies.\n\n"
@@ -74,7 +78,7 @@ if __name__ == "__main__":
         sys.exit(1)
     
     INFERNO_ROOT = os.path.abspath(sys.argv[1])
-    dis_files = map(os.path.abspath, sys.argv[2:-1])
+    input_files = map(os.path.abspath, sys.argv[2:-1])
     exec_file = os.path.abspath(sys.argv[-1])
     
     # Include the configuration file in order to get the definitions for the host
@@ -95,6 +99,14 @@ if __name__ == "__main__":
     tempdir = os.path.join(INFERNO_ROOT, "tmp", "standalone")
     mkdir(tempdir)
     
+    # Compile any input files that are Limbo files.
+    for i, input_file in enumerate(input_files):
+    
+        if input_file.endswith(".b"):
+            dis_file = os.path.join(tempdir, input_file[:-1] + "dis")
+            limbo(input_file, dis_file)
+            input_files[i] = dis_file
+    
     # Copy each Dis file into the temporary directory, if necessary, and find
     # its dependencies.
     deps = set()
@@ -103,20 +115,18 @@ if __name__ == "__main__":
     paths = []
     dest_paths = set()
     
-    for dis_file in dis_files:
+    for input_file in input_files:
     
-        dis_name = os.path.split(dis_file)[1]
-        if os.path.splitext(dis_name)[1] != ".dis":
-            error("File specified was not a Dis file: %s\n" % dis_file)
+        input_name = os.path.split(input_file)[1]
+        input_within = within_dir(input_file, INFERNO_ROOT)
+        print input_within, input_file
         
-        dis_within = within_dir(dis_file, INFERNO_ROOT)
-        
-        if dis_within != dis_file:
+        if input_within != input_file:
             # The file is already in the Inferno source directory.
-            src_path = dest_path = dis_within
+            src_path = dest_path = input_within
         else:
-            src_path = "/tmp/standalone/" + dis_name
-            dest_path = "/dis/standalone/" + dis_name
+            src_path = "/tmp/standalone/" + input_name
+            dest_path = "/dis/standalone/" + input_name
         
         # Don't include duplicate files.
         if dest_path in dest_paths:
@@ -124,23 +134,27 @@ if __name__ == "__main__":
         
         # Copy the file into the temporary directory if it originates elsewhere.
         if src_path != dest_path:
-            copy(dis_file, os.path.join(tempdir, dis_name))
+            copy(input_file, os.path.join(tempdir, input_name))
+        elif not os.path.exists(input_file):
+            error("Failed to find the requested input file: %s\n" % input_file)
         
-        new_deps = find_dependencies(src_path)
-        
-        # Only include the file if its dependencies could be found.
-        if new_deps != None:
-        
+        if not is_dis(src_path):
             paths.append((dest_path, src_path))
-            deps.update(new_deps)
-            dest_paths.add(dest_path)
+        else:
+            # Only include Dis files if their dependencies can be found.
+            new_deps = find_dependencies(src_path)
             
-            if not appname:
-                appname = dest_path
+            if new_deps != None:
             
-            if '/dis/lib/wm' in dest_path:
-                uses_wm = True
-    
+                paths.append((dest_path, src_path))
+                deps.update(new_deps)
+                dest_paths.add(dest_path)
+                
+                if not appname:
+                    appname = dest_path
+                
+                if '/dis/lib/wm' in dest_path:
+                    uses_wm = True
     
     # Add the dependencies to the manifest.
     for path in deps:
@@ -207,6 +221,9 @@ if __name__ == "__main__":
             cfg.write('\t%s\n' % dest)
         else:
             cfg.write('\t%s\t%s\n' % (dest, src))
+    
+    # Add additional root directories to the manifest.
+    cfg.write('\t/n\t/\n')
     
     cfg.close()
     
