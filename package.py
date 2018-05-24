@@ -247,7 +247,8 @@ if __name__ == "__main__":
             cfg.write('\t%s\t%s\n' % (dest, src))
     
     # Add additional root directories to the manifest.
-    cfg.write('\t/n\t/\n')
+    cfg.write('\t/n\t/\n')          # /n
+    cfg.write('\t/tmp/wdir\t/\n')  # /tmp/wdir
     
     cfg.close()
     

@@ -62,6 +62,12 @@ init(ctxt: ref Draw->Context, argv: list of string)
     # application itself.
     sys->bind("#e", "/env", Sys->MAFTER);
 
+    # Read the emuwdir environment variable and bind the working directory to
+    # the temporary directory. The MCREATE flag is needed in order to allow the
+    # directory to be written to.
+    emuwdir := env->getenv("emuwdir");
+    sys->bind("#U*" + emuwdir, "/tmp/wdir", Sys->MAFTER|Sys->MCREATE);
+
     # Read the emuargs environment variable.
     emuargs := env->getenv("emuargs");
     (emu, app_args) := str->splitl(emuargs, " ");
@@ -70,6 +76,8 @@ init(ctxt: ref Draw->Context, argv: list of string)
     # from the appname file.
     args := list of {"sh", "-c", appname + " " + app_args};
 
-    # We do not need to spawn a new process here.
+    # Enter the working directory.
+    sys->chdir("/tmp/wdir");
+    # We do not need to spawn a new process here. The shell replaces this one.
     sh->init(ctxt, args);
 }
