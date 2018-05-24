@@ -50,9 +50,11 @@ init(ctxt: ref Context, argv: list of string)
     # or just unmount / to leave the root directory.
     sys->unmount(nil, "/");
 
+    # Run the window manager with the file name of the application obtained
+    # from the appname file.
     program: string = "wm/wm " + appname;
     args := list of {"sh", "-c", program};
 
-    # We do not need to span a new process here.
+    # We do not need to spawn a new process here.
     sh->init(ctxt, args);
 }

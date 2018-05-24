@@ -61,12 +61,35 @@ def rmtree(path):
     print "Deleting", path
     shutil.rmtree(path)
 
+def has_opt(args, name):
+    return ((name in args) and (args.remove(name) or True)) or False
+
+def include_component(dis_path, dest_paths, deps):
+
+    paths = []
+    
+    if dis_path not in dest_paths and dis_path not in deps:
+        paths.append((dis_path, dis_path))
+        for path in find_dependencies(dis_path):
+            if path not in deps:
+                paths.append((path, path))
+    
+    return paths
+
 
 if __name__ == "__main__":
 
-    if len(sys.argv) < 4:
+    args = sys.argv[:]
+    
+    draw_project = has_opt(args, "--draw")
+    wm_project = has_opt(args, "--wm")
+    tk_project = has_opt(args, "--tk")
+    
+    if tk_project: wm_project = True
+    
+    if len(args) < 4:
         sys.stderr.write(
-            "Usage: %s <Inferno source directory> <Limbo or Dis file>... <executable>\n\n"
+            "Usage: %s <Inferno source directory> [--draw] [--wm] <Limbo or Dis file>... <executable>\n\n"
             "Creates a standalone executable containing the emulator from the specified\n"
             "Inferno source directory, the Dis files for the application and their\n"
             "dependencies.\n\n"
@@ -77,9 +100,9 @@ if __name__ == "__main__":
         
         sys.exit(1)
     
-    INFERNO_ROOT = os.path.abspath(sys.argv[1])
-    input_files = map(os.path.abspath, sys.argv[2:-1])
-    exec_file = os.path.abspath(sys.argv[-1])
+    INFERNO_ROOT = os.path.abspath(args[1])
+    input_files = map(os.path.abspath, args[2:-1])
+    exec_file = os.path.abspath(args[-1])
     
     # Include the configuration file in order to get the definitions for the host
     # and object type.
@@ -111,7 +134,6 @@ if __name__ == "__main__":
     # its dependencies.
     deps = set()
     appname = None
-    uses_wm = False
     paths = []
     dest_paths = set()
     
@@ -154,39 +176,23 @@ if __name__ == "__main__":
                     appname = dest_path
                 
                 if '/dis/lib/wm' in dest_path:
-                    uses_wm = True
+                    wm_project = True
     
     # Add the dependencies to the manifest.
     for path in deps:
     
         paths.append((path, path))
         if '/dis/lib/wm' in path:
-            uses_wm = True
+            wm_project = True
     
-    if uses_wm:
+    if wm_project:
     
         # If the application relies on the window manager and it is not
         # included then include the executable and its dependencies.
-        wm_dis = "/dis/wm/wm.dis"
-        
-        if wm_dis not in dest_paths and wm_dis not in deps:
-            paths.append((wm_dis, wm_dis))
-            for path in find_dependencies(wm_dis):
-                if path not in deps:
-                    paths.append((path, path))
-        
-        # The boot.dis file will be renamed to emuinit.dis when packaged.
-        # It needs to get a string from the /tmp/appname file which we will
-        # include with it.
-        paths.append(("/dis/emuinit.dis", "/tmp/standalone/boot.dis"))
-        
-        # The Dis file in the appname file is used as the entry point into the
-        # application.
-        open(os.path.join(tempdir, "appname"), "w").write(appname)
-        paths.append(("/dis/standalone/appname", "/tmp/standalone/appname"))
+        paths += include_component("/dis/wm/wm.dis", dest_paths, deps)
         
         # The boot file will replace the emuinit.dis file.
-        limbo(os.path.join(script_dir, "boot.b"), "boot.dis")
+        limbo(os.path.join(script_dir, "wmboot.b"), "boot.dis")
         move("boot.dis", os.path.join(tempdir, "boot.dis"))
         
         # Add the resources required by the window manager.
@@ -198,14 +204,32 @@ if __name__ == "__main__":
             path = "/fonts/pelm/" + file_name
             paths.append((path, path))
         
+        if tk_project:
+            paths += include_component("/dis/lib/tkclient.dis", dest_paths, deps)
+        
         # Use the regular configuration file as the basis for the manifest.
         conf_file = "emu"
     
     else:
-        # The first Dis file is used as the entry point into the application.
-        paths[0] = ("/dis/emuinit.dis", paths[0][1])
-        conf_file = "emu-g"
+        # The boot file will replace the emuinit.dis file.
+        limbo(os.path.join(script_dir, "cmdboot.b"), "boot.dis")
+        move("boot.dis", os.path.join(tempdir, "boot.dis"))
+        
+        if draw_project:
+            conf_file = "emu"
+        else:
+            conf_file = "emu-g"
     
+    # The boot.dis file will be renamed to emuinit.dis when packaged.
+    # It needs to get a string from the /tmp/appname file which we will
+    # include with it.
+    paths.append(("/dis/emuinit.dis", "/tmp/standalone/boot.dis"))
+    paths += include_component("/tmp/standalone/boot.dis", dest_paths, deps)
+    
+    # The Dis file in the appname file is used as the entry point into the
+    # application.
+    open(os.path.join(tempdir, "appname"), "w").write(appname)
+    paths.append(("/dis/standalone/appname", "/tmp/standalone/appname"))
     
     # Create a new configuration file.
     copy(os.path.join(emu_src_dir, conf_file),
