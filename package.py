@@ -105,8 +105,6 @@ if __name__ == "__main__":
     wm_project = has_opt(args, "--wm")
     tk_project = has_opt(args, "--tk")
     
-    if tk_project: wm_project = True
-    
     if len(args) < 4:
         sys.stderr.write(
             "Usage: %s <Inferno source directory> [--draw] [--wm] <Limbo or Dis file>... <executable>\n\n"
@@ -194,16 +192,24 @@ if __name__ == "__main__":
                 
                 if not appname:
                     appname = dest_path
-                
-                if '/dis/lib/wm' in dest_path:
-                    wm_project = True
     
     # Add the dependencies to the manifest.
     for path in deps:
-    
         paths.append((path, path))
-        if '/dis/lib/wm' in path:
-            wm_project = True
+    
+    if tk_project:
+        paths += include_component("/dis/lib/tkclient.dis", dest_paths, deps)
+    
+    if tk_project or wm_project:
+    
+        # Add the resources required by the window manager and Tk.
+        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "icons", "tk")):
+            path = "/icons/tk/" + file_name
+            paths.append((path, path))
+        
+        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "fonts", "pelm")):
+            path = "/fonts/pelm/" + file_name
+            paths.append((path, path))
     
     if wm_project:
     
@@ -215,17 +221,14 @@ if __name__ == "__main__":
         limbo(os.path.join(script_dir, "wmboot.b"), "boot.dis")
         move("boot.dis", os.path.join(tempdir, "boot.dis"))
         
-        # Add the resources required by the window manager.
-        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "icons", "tk")):
-            path = "/icons/tk/" + file_name
-            paths.append((path, path))
-        
-        for file_name in os.listdir(os.path.join(INFERNO_ROOT, "fonts", "pelm")):
-            path = "/fonts/pelm/" + file_name
-            paths.append((path, path))
-        
-        if tk_project:
-            paths += include_component("/dis/lib/tkclient.dis", dest_paths, deps)
+        # Use the regular configuration file as the basis for the manifest.
+        conf_file = "emu"
+    
+    elif tk_project:
+    
+        # The boot file will replace the emuinit.dis file.
+        limbo(os.path.join(script_dir, "tkboot.b"), "boot.dis")
+        move("boot.dis", os.path.join(tempdir, "boot.dis"))
         
         # Use the regular configuration file as the basis for the manifest.
         conf_file = "emu"

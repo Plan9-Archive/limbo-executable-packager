@@ -27,27 +27,24 @@ include "bufio.m";
 
 include "draw.m";
     draw: Draw;
-
-include "env.m";
-    env: Env;
-
-include "string.m";
-    str: String;
+    Context: import draw;
 
 include "sh.m";
     sh: Sh;
 
+include "wmlib.m";
+    wmlib: Wmlib;
+
 Boot: module
 {
-    init: fn(ctxt: ref Draw->Context, argv: list of string);
+    init: fn(ctxt: ref Context, argv: list of string);
 };
 
-init(ctxt: ref Draw->Context, argv: list of string)
+init(ctxt: ref Context, argv: list of string)
 {
-    env := load Env Env->PATH;
-    str := load String String->PATH;
     sys := load Sys Sys->PATH;
     sh := load Sh Sh->PATH;
+    wmlib := load Wmlib Wmlib->PATH;
 
     # Care must be taken to keep these definitions together and not define some
     # above and redefine others here.
@@ -77,27 +74,10 @@ init(ctxt: ref Draw->Context, argv: list of string)
     # or just unmount / to leave the root directory.
     sys->unmount(nil, "/");
 
-    # Bind the environment device to a directory in the root so that the
-    # command line arguments given to the emu can be passed on to the
-    # application itself.
-    sys->bind("#e", "/env", Sys->MAFTER);
-
-    # Read the emuwdir environment variable and bind the working directory to
-    # the temporary directory. The MCREATE flag is needed in order to allow the
-    # directory to be written to.
-    emuwdir := env->getenv("emuwdir");
-    sys->bind("#U*" + emuwdir, "/tmp/wdir", Sys->MAFTER|Sys->MCREATE);
-
-    # Read the emuargs environment variable.
-    emuargs := env->getenv("emuargs");
-    (emu, app_args) := str->splitl(emuargs, " ");
-
     # Run the shell with the file name of the application obtained from the
     # appname file.
-    args := list of {"sh", "-c", appname + " " + app_args};
+    args := list of {"sh", "-c", appname};
 
-    # Enter the working directory.
-    sys->chdir("/tmp/wdir");
-    # We do not need to spawn a new process here. The shell replaces this one.
+    # We do not need to spawn a new process here.
     sh->init(ctxt, args);
 }
