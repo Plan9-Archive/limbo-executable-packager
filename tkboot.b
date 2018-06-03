@@ -21,16 +21,11 @@
 implement Boot;
 
 include "sys.m";
-    sys: Sys;
-
+include "sh.m";
 include "bufio.m";
-
 include "draw.m";
     draw: Draw;
     Context: import draw;
-
-include "sh.m";
-    sh: Sh;
 
 include "wmlib.m";
     wmlib: Wmlib;
@@ -76,8 +71,7 @@ init(ctxt: ref Context, argv: list of string)
 
     # Run the shell with the file name of the application obtained from the
     # appname file.
-    args := list of {"sh", "-c", appname};
-
-    # We do not need to spawn a new process here.
-    sh->init(ctxt, args);
+    mod: Command;
+    mod = load Command appname;
+    mod->init(ctxt, argv);
 }
