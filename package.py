@@ -192,6 +192,12 @@ if __name__ == "__main__":
                 
                 if not appname:
                     appname = dest_path
+            else:
+                sys.stderr.write("Failed to find dependencies for input file: %s\n" % input_file)
+    
+    if appname == None:
+        error("Failed to find a module to use as the main application.\n"
+              "Perhaps the dependencies for one or more input files could not be determined.\n")
     
     # Add the dependencies to the manifest.
     for path in deps:
@@ -263,11 +269,16 @@ if __name__ == "__main__":
     cfg.seek(0, 2)
     
     # Add the paths to the manifest.
+    added = set()
+    
     for dest, src in paths:
         if src == dest:
-            cfg.write('\t%s\n' % dest)
-        else:
+            if dest not in added:
+                cfg.write('\t%s\n' % dest)
+                added.add(dest)
+        elif (dest, src) not in added:
             cfg.write('\t%s\t%s\n' % (dest, src))
+            added.add((dest, src))
     
     # Add additional root directories to the manifest.
     cfg.write('\t/n\t/\n')          # /n

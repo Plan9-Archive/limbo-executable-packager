@@ -61,3 +61,12 @@ This software is licensed under the Expat/MIT license:
   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
   DEALINGS IN THE SOFTWARE.
+
+
+References
+----------
+
+This tool was inspired by Chris Double's article on Bundling Inferno
+Applications and the resources he drew from:
+
+https://bluishcoder.co.nz/2016/08/12/bundling-inferno-applications.html
